@@ -7,10 +7,13 @@ const { fetchTikTokEmbed } = require('./src/platforms/tiktok');
 const { fetchRedditEmbed } = require('./src/platforms/reddit');
 const { fetchFacebookEmbed } = require('./src/platforms/facebook');
 const { detectPlatform } = require('./src/detect');
+const { registerDeletionRoutes } = require('./src/fbDeletion');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const FB_ACCESS_TOKEN = process.env.FACEBOOK_ACCESS_TOKEN || null;
+const FB_APP_SECRET   = process.env.FACEBOOK_APP_SECRET || null;
+const BASE_URL        = process.env.BASE_URL || `http://localhost:${PORT}`;
 
 const DISCORD_BOTS = [
   'discordbot',
@@ -75,6 +78,10 @@ async function handleEmbed(req, res, platform, path) {
     console.error(`[${platform}] Handler error:`, err.message);
     return html(res, buildError(PLATFORM_ERRORS[platform], originalUrl));
   }
+}
+
+if (FB_APP_SECRET) {
+  registerDeletionRoutes(app, FB_APP_SECRET, BASE_URL);
 }
 
 app.get('/twitter/*', (req, res) => handleEmbed(req, res, 'twitter',   '/' + req.params[0]));
