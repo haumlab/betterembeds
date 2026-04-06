@@ -6,28 +6,28 @@ const GRAPH = 'https://graph.facebook.com/v19.0';
 function detectFbContent(pathname, searchParams) {
   const p = pathname;
 
-  if (/\/marketplace\/item\/(\d+)/.test(p))
-    return { type: 'marketplace', id: p.match(/\/marketplace\/item\/(\d+)/)[1] };
-  if (/\/events\/(\d+)/.test(p))
-    return { type: 'event', id: p.match(/\/events\/(\d+)/)[1] };
-  if (/\/reel(?:s)?\/(\d+)/.test(p))
-    return { type: 'reel', id: p.match(/\/reel(?:s)?\/(\d+)/)[1] };
-  if (/\/videos\/(\d+)/.test(p))
-    return { type: 'video', id: p.match(/\/videos\/(\d+)/)[1] };
+  if (/\/marketplace\/item\/([A-Za-z0-9_-]+)/.test(p))
+    return { type: 'marketplace', id: p.match(/\/marketplace\/item\/([A-Za-z0-9_-]+)/)[1] };
+  if (/\/events\/([A-Za-z0-9_-]+)/.test(p))
+    return { type: 'event', id: p.match(/\/events\/([A-Za-z0-9_-]+)/)[1] };
+  if (/\/reel(?:s)?\/([A-Za-z0-9_-]+)/.test(p))
+    return { type: 'reel', id: p.match(/\/reel(?:s)?\/([A-Za-z0-9_-]+)/)[1] };
+  if (/\/videos\/([A-Za-z0-9_-]+)/.test(p))
+    return { type: 'video', id: p.match(/\/videos\/([A-Za-z0-9_-]+)/)[1] };
   if (p === '/watch' && searchParams.get('v'))
     return { type: 'video', id: searchParams.get('v') };
   if (searchParams.get('fbid'))
     return { type: 'photo', id: searchParams.get('fbid') };
-  if (/\/photos\/\d+\/(\d+)/.test(p))
-    return { type: 'photo', id: p.match(/\/photos\/\d+\/(\d+)/)[1] };
-  if (/\/photo\/(\d+)/.test(p))
-    return { type: 'photo', id: p.match(/\/photo\/(\d+)/)[1] };
-  if (/\/groups\/[^/]+\/(?:permalink|posts)\/(\d+)/.test(p))
-    return { type: 'post', id: p.match(/\/groups\/[^/]+\/(?:permalink|posts)\/(\d+)/)[1] };
+  if (/\/photos\/[^/]+\/([A-Za-z0-9_-]+)/.test(p))
+    return { type: 'photo', id: p.match(/\/photos\/[^/]+\/([A-Za-z0-9_-]+)/)[1] };
+  if (/\/photo\/([A-Za-z0-9_-]+)/.test(p))
+    return { type: 'photo', id: p.match(/\/photo\/([A-Za-z0-9_-]+)/)[1] };
+  if (/\/groups\/[^/]+\/(?:permalink|posts)\/([A-Za-z0-9_-]+)/.test(p))
+    return { type: 'post', id: p.match(/\/groups\/[^/]+\/(?:permalink|posts)\/([A-Za-z0-9_-]+)/)[1] };
   if (searchParams.get('story_fbid'))
     return { type: 'post', id: searchParams.get('story_fbid') };
-  if (/\/posts\/(\d+)/.test(p))
-    return { type: 'post', id: p.match(/\/posts\/(\d+)/)[1] };
+  if (/\/posts\/([A-Za-z0-9_-]+)/.test(p))
+    return { type: 'post', id: p.match(/\/posts\/([A-Za-z0-9_-]+)/)[1] };
 
   const pageMatch = p.match(/^\/([A-Za-z0-9._-]+)\/?$/);
   if (pageMatch && pageMatch[1] !== 'watch' && pageMatch[1] !== 'marketplace')
@@ -56,10 +56,14 @@ async function fetchOEmbed(originalUrl, token, endpointType = 'post') {
   return res.data;
 }
 
+
 async function scrapeFacebook(originalUrl, { marketplace = false } = {}) {
   const UAS = [
     'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+    'facebookexternalhit/1.1',
     'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)',
+    'Twitterbot/1.0',
+    'LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)',
   ];
 
   for (const ua of UAS) {
@@ -67,16 +71,17 @@ async function scrapeFacebook(originalUrl, { marketplace = false } = {}) {
       const res = await axios.get(originalUrl, {
         headers: {
           'User-Agent': ua,
-          Accept: 'text/html,application/xhtml+xml',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
+          'Cache-Control': 'no-cache',
         },
-        timeout: 8000,
+        timeout: 10000,
         maxRedirects: 5,
       });
 
       const html  = res.data;
-      const title = extractMeta(html, 'og:title');
-      const desc  = extractMeta(html, 'og:description');
+      const title = decodeHtmlEntities(extractMeta(html, 'og:title'));
+      const desc  = decodeHtmlEntities(extractMeta(html, 'og:description'));
       const image = extractMeta(html, 'og:image');
       const video = extractMeta(html, 'og:video:url') || extractMeta(html, 'og:video:secure_url') || extractMeta(html, 'og:video');
 
@@ -84,7 +89,6 @@ async function scrapeFacebook(originalUrl, { marketplace = false } = {}) {
 
       if (!marketplace) return { title, desc, image, video };
 
-      // For marketplace: extract all product images + JSON-LD product data
       const images = extractAllMeta(html, 'og:image').filter(Boolean);
 
       let jsonLd = null;
@@ -353,15 +357,16 @@ async function fetchFacebookEmbed(rawPath, accessToken) {
     }
   }
 
-  if (!embedData && accessToken && type !== 'marketplace') {
+  // oEmbed — last resort for supported types before HTML scrape
+  if (!embedData && accessToken && ['post', 'video', 'reel', 'page'].includes(type)) {
     try {
       const oembedType = type === 'video' || type === 'reel' ? 'video' : type === 'page' ? 'page' : 'post';
       const d = await fetchOEmbed(originalUrl, accessToken, oembedType);
       if (d) {
         embedData = {
           siteName: 'Facebook',
-          title: d.author_name || 'Facebook Post',
-          description: d.author_name || '',
+          title: d.author_name || 'Facebook',
+          description: '',
           image: d.thumbnail_url || null,
           color: '#1877F2',
           redirectUrl: originalUrl,
@@ -372,14 +377,19 @@ async function fetchFacebookEmbed(rawPath, accessToken) {
     }
   }
 
+  // HTML scrape — catches marketplace and anything the API can't reach
   if (!embedData) {
     try {
       const scraped = await scrapeFacebook(originalUrl, { marketplace: type === 'marketplace' });
       if (type === 'marketplace') {
         embedData = parseMarketplace(scraped, originalUrl);
       } else if (scraped) {
+        const LABELS = {
+          event: 'Facebook Event', video: 'Facebook Video', reel: 'Facebook Reel',
+          page: 'Facebook Page', photo: 'Facebook Photo',
+        };
         embedData = {
-          siteName: type === 'event' ? 'Facebook Event' : 'Facebook',
+          siteName: LABELS[type] || 'Facebook',
           title: scraped.title || 'Facebook',
           description: scraped.desc || '',
           image: scraped.image || null,
@@ -389,12 +399,24 @@ async function fetchFacebookEmbed(rawPath, accessToken) {
         };
       }
     } catch (err) {
-      console.warn('[facebook] Scrape failed:', err.message);
+      console.warn('[facebook] HTML scrape failed:', err.message);
     }
   }
 
   if (embedData) cache.set(cacheKey, embedData);
   return embedData;
+}
+
+function decodeHtmlEntities(str) {
+  if (!str) return str;
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 }
 
 function extractMeta(html, property) {

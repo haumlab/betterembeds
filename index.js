@@ -111,13 +111,6 @@ app.get('/resolve', async (req, res) => {
   }
 });
 
-app.get('/*', async (req, res) => {
-  const path = req.path;
-  const detected = detectPlatform(path, null);
-  if (!detected) return res.redirect('/');
-  return handleEmbed(req, res, detected.platform, detected.path);
-});
-
 app.get('/', (req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>
@@ -168,6 +161,13 @@ app.get('/', (req, res) => {
   <p><code>yourhost/resolve?url=https://twitter.com/user/status/123</code></p>
 </body>
 </html>`);
+});
+
+app.get('/*', async (req, res) => {
+  const path = req.path;
+  const detected = detectPlatform(path, null);
+  if (!detected) return res.redirect('/');
+  return handleEmbed(req, res, detected.platform, detected.path);
 });
 
 app.listen(PORT, () => {

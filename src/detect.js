@@ -37,21 +37,21 @@ function detectPlatform(rawPath, hostname) {
   if (/^\/u(?:ser)?\/[A-Za-z0-9_-]+\/comments\//.test(p))
     return { platform: 'reddit', path: rawPath };
 
-  if (/^\/marketplace\/item\/\d+/.test(p))
+  if (/^\/marketplace\/item\/[A-Za-z0-9_-]+/.test(p))
     return { platform: 'facebook', path: rawPath };
-  if (/^\/events\/\d+/.test(p))
+  if (/^\/events\/[A-Za-z0-9_-]+/.test(p))
     return { platform: 'facebook', path: rawPath };
   if (/^\/watch/.test(p) && rawPath.includes('v='))
     return { platform: 'facebook', path: rawPath };
-  if (/^\/(?:[^/]+\/)?videos\/\d+/.test(p))
+  if (/^\/(?:[^/]+\/)?videos\/[A-Za-z0-9_-]+/.test(p))
     return { platform: 'facebook', path: rawPath };
-  if (/^\/groups\/[^/]+\/(?:permalink|posts)\/\d+/.test(p))
+  if (/^\/groups\/[^/]+\/(?:permalink|posts)\/[A-Za-z0-9_-]+/.test(p))
     return { platform: 'facebook', path: rawPath };
-  if (/^\/[^/]+\/posts\/\d+/.test(p))
+  if (/^\/[^/]+\/posts\/[A-Za-z0-9_-]+/.test(p))
     return { platform: 'facebook', path: rawPath };
   if (/^\/permalink\.php/.test(p))
     return { platform: 'facebook', path: rawPath };
-  if (/^\/photos?/.test(p) && (rawPath.includes('fbid=') || /\/\d+\/?$/.test(p)))
+  if (/^\/photos?/.test(p) && (rawPath.includes('fbid=') || /\/[A-Za-z0-9_-]+\/?$/.test(p)))
     return { platform: 'facebook', path: rawPath };
 
   return null;
